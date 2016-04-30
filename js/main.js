@@ -15,7 +15,7 @@ var GameState = {
 
         this.game.world.setBounds(0,0,360,700);
 
-        this.RUNNING_SPEED = 100;
+        this.RUNNING_SPEED = 180;
         this.JUMPING_SPEED = 550;
 
     },
@@ -54,21 +54,53 @@ var GameState = {
         this.platforms.setAll('body.immovable', true);
         this.platforms.setAll('body.allowGravity', false);
 
+        // fires
+        this.fires = this.add.group();
+        this.fires.enableBody = true;
+
+        var fire;
+        this.levelData.fireData.forEach(function(element){
+            fire = this.fires.create(element.x, element.y, 'fire');
+            fire.animations.add('fire', [0, 1], 4, true);
+            fire.play('fire');
+        }, this);
+
+        this.fires.setAll('body.allowGravity', false);
+
+        // goal
+        this.goal = this.add.sprite(this.levelData.goal.x, this.levelData.goal.y, 'goal');
+        this.game.physics.arcade.enable(this.goal);
+        this.goal.body.allowGravity = false;
+
         //create player
         this.player = this.add.sprite(this.levelData.playerStart.x, this.levelData.playerStart.y, 'player', 3);
         this.player.anchor.setTo(0.5);
         this.player.animations.add('walking', [0, 1, 2, 1], 6, true);
         this.game.physics.arcade.enable(this.player);
         this.player.customParams = {};
+        this.player.body.collideWorldBounds = true;
 
         this.game.camera.follow(this.player);
 
         this.createOnscreenControls();
 
+        this.barrels = this.add.group();
+        this.barrels.enableBody = true;
+
+        this.barrelCreator = this.game.time.events.loop(Phaser.Timer.SECOND * this.levelData.barrelFrequency, this.createBarrel, this);
+
     },
     update: function() {
         this.game.physics.arcade.collide(this.player, this.ground);
         this.game.physics.arcade.collide(this.player, this.platforms);
+
+        this.game.physics.arcade.collide(this.barrels, this.ground);
+        this.game.physics.arcade.collide(this.barrels, this.platforms);
+
+        this.game.physics.arcade.overlap(this.player, this.fires, this.killPlayer);
+        this.game.physics.arcade.overlap(this.player, this.goal, this.win);
+
+        this.game.physics.arcade.overlap(this.player, this.barrels, this.killPlayer);
 
         this.player.body.velocity.x = 0;
 
@@ -90,6 +122,11 @@ var GameState = {
             this.player.customParams.mustJump = false;
         }
 
+        this.barrels.forEach(function(element){
+            if(element.x < 10 && element.y > 600) {
+                element.kill();
+            }
+        }, this);
 
     },
     createOnscreenControls: function(){
@@ -111,6 +148,14 @@ var GameState = {
         }, this);
 
         this.actionButton.events.onInputUp.add(function(){
+            this.player.customParams.mustJump = false;
+        }, this);
+
+        this.actionButton.events.onInputOver.add(function(){
+            this.player.customParams.mustJump = true;
+        }, this);
+
+        this.actionButton.events.onInputOut.add(function(){
             this.player.customParams.mustJump = false;
         }, this);
 
@@ -147,6 +192,31 @@ var GameState = {
         this.rightArrow.events.onInputOut.add(function(){
             this.player.customParams.isMovingRight = false;
         }, this);
+    },
+    killPlayer: function(player, fire) {
+
+        game.state.start('GameState');
+
+    },
+    win: function(player, goal) {
+        alert("you win!");
+        game.state.start('GameState');
+
+    },
+    createBarrel: function() {
+        // get first dead sprite if any
+        var barrel = this.barrels.getFirstExists(false);
+
+        // if no barrel sprites exist
+        if(!barrel) {
+            barrel = this.barrels.create(0, 0, 'barrel')
+        }
+
+        barrel.body.collideWorldBounds = true;
+        barrel.body.bounce.set(1, 0);
+
+        barrel.reset(this.levelData.goal.x, this.levelData.goal.y);
+        barrel.body.velocity.x = this.levelData.barrelSpeed;
     }
 
 
